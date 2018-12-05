@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "zookeeper.fullname" . }}
+  labels:
+    snappyflow/compname: stagekafka
+    snappyflow/appname: produc-stage
+    app: {{ include "zookeeper.name" . | quote }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+    snappyflow/plugin: zookeeper-jmx
+spec:
+  ports:
+  - port: {{ .Values.clientPort }}
+    name: client
+  - port: {{ .Values.prometheus.jmx.port }}
+    name: jmxport
+  selector:
+    app: {{ include "zookeeper.name" . | quote }}
+    release: {{ .Release.Name | quote }}

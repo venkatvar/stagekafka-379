@@ -1,0 +1,60 @@
+{{- if and .Values.kafka_perf.enabled }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-kafka-perf
+  labels:
+    snappyflow/compname: stagekafka
+    snappyflow/appname: produc-stage
+    app: {{ include "kafka.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  schedule: {{ .Values.kafka_perf.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 0
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: producer
+            image: "{{ .Values.image }}:{{ .Values.imageTag }}"
+            imagePullPolicy: IfNotPresent
+            resources:
+{{ toYaml .Values.kafka_perf.resources | indent 14 }}
+            env:
+            - name: ZOOKEEPER
+              value: {{ include "zookeeper.url" . | quote }}
+            - name: BOOTSTRAP_BROKERS
+              value: "{{ include "kafka.fullname" . }}-headless:9092"
+            command:
+            - sh
+            - -exc
+            - |
+              /usr/bin/kafka-producer-perf-test \
+              --num-records {{ .Values.kafka_perf.num_messages }} --topic {{ .Values.kafka_perf.topic }} \
+              --throughput {{ .Values.kafka_perf.throughput }} --record-size 10 \
+              --producer-props bootstrap.servers=${BOOTSTRAP_BROKERS} --print-metrics
+          - name: consumer
+            image: "{{ .Values.image }}:{{ .Values.imageTag }}"
+            imagePullPolicy: IfNotPresent
+            resources:
+{{ toYaml .Values.kafka_perf.resources | indent 14 }}
+            env:
+            - name: ZOOKEEPER
+              value: {{ include "zookeeper.url" . | quote }}
+            - name: BOOTSTRAP_BROKERS
+              value: "{{ include "kafka.fullname" . }}-headless:9092"
+            command:
+            - sh
+            - -exc
+            - |
+              sleep 30 && /usr/bin/kafka-consumer-perf-test \
+              --zookeeper ${ZOOKEEPER} --topic {{ .Values.kafka_perf.topic }} \
+              --messages {{ .Values.kafka_perf.num_messages }} --show-detailed-stats
+{{- end }}
